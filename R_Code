@@ -1,0 +1,176 @@
+# Soil health Index and Kruskal Wallis test
+# Step 1: Load the dataset
+data <- read.csv("dataset.csv")
+
+# Step 2: Reverse columns 9 and 14
+data[, 9] <- -data[, 9]
+data[, 14] <- -data[, 14]
+
+# Step 3: Apply z-score transformation to columns 9 to 15
+data[, 9:15] <- scale(data[, 9:15])
+
+# Step 4: Aggregate (mean) the z-score transformed columns 9 to 15
+data$Soil_health_index <- rowMeans(data[, 9:15])
+
+library(dplyr)
+
+filtered_data <- data %>% 
+  filter(LC_simpl_2018 %in% c("Cropland", "Grassland", "Woodland"))
+
+kruskal_test <- kruskal.test(Soil_health_index ~ LC_simpl_2018, data = filtered_data)
+
+print(kruskal_test)
+
+# Soil health Index vs. Primary productivity
+# Step 3: Define a function to fit linear model and extract R² and p-value
+fit_linear_model <- function(data, land_use_type = "All Data") {
+  if (land_use_type != "All Data") {
+    data <- filter(data, LC_simpl_2018 == land_use_type)
+  }
+  
+  model <- lm(Soil_health_index ~ NPP, data = data)
+  summary_model <- summary(model)
+  
+  r_squared <- summary_model$r.squared
+  p_value <- summary_model$coefficients[2, 4]
+  
+  return(list(land_use_type = land_use_type, r_squared = r_squared, p_value = p_value))
+}
+
+# Step 4: Fit linear models for each land use type and for all data points
+land_use_types <- unique(data$LC_simpl_2018)
+results <- lapply(land_use_types, function(type) fit_linear_model(data, type))
+
+# Include all data points together
+results <- append(results, list(fit_linear_model(data, "All Data")))
+
+# Step 5: Print the results
+for (result in results) {
+  cat("Land Use Type:", result$land_use_type, "\n")
+  cat("R²:", result$r_squared, "\n")
+  cat("p-value:", result$p_value, "\n\n")
+}
+
+# Random Forest
+# Load necessary libraries
+library(dplyr)
+
+# Assuming the dataset is already loaded and named 'dataset'
+
+# Split the dataset into three subsets based on the 'LC_simpl_2018' column
+data_grassland <- filter(dataset, LC_simpl_2018 == "Grassland")
+data_cropland <- filter(dataset, LC_simpl_2018 == "Cropland")
+data_woodland <- filter(dataset, LC_simpl_2018 == "Woodland")
+data_grassland$LC_simpl_2018 = NULL
+data_cropland$LC_simpl_2018 = NULL
+data_woodland$LC_simpl_2018 = NULL
+
+library(rfPermute)
+
+rfPermute_woodland = rfPermute(NPP ~ .,
+                           data = data_woodland, ntree = 1000)
+
+print(rfPermute_woodland$rf)
+importance(rfPermute_woodland)
+
+# Get R2 and pval from linear models (replace by the name of variable of interest and the corresponding dataset)
+data_model = data_grassland
+model <- lm(data_model$PATHO_RICH ~ poly(data_model$NPP,1))
+summary(model)
+
+#Figure scatter. FINDSCATTER
+#First remember to define X and Y variables (there are the variables that you want to plot)
+b <- ggplot(dataset, aes(x = x, y = y))
+b <- b + geom_point(size = 2, alpha = 0.5, color = "#FF6633")
+
+#Active the code line desired depending on the model to fit on the figure
+#b <- b + geom_smooth(aes(group = LC_simpl_2018), linetype = "solid", method = "lm", se = T, fullrange = F, alpha = 0.2, color= "black")
+#b = b + geom_smooth(method = "lm", se = T, fullrange = F,color = "black", alpha = 0.2)
+#b = b + geom_smooth(method = "nls", formula = y ~ a * x^2 + x + b, se = F,
+#           method.args = list(start = list(a = 0.1, b = 0.1)))
+#b = b + stat_smooth(method = "lm",
+#    formula = y ~ poly(x, 1), 
+#  se = FALSE)
+
+b <- b + theme(panel.border = element_rect(linetype = "solid", fill = NA),
+               panel.background = element_rect(fill = "grey98"),
+               panel.grid.major = element_line(colour = "grey92"),
+               panel.grid.minor = element_line(colour = "grey92"),
+               axis.text.y = element_text(size = 12),
+               axis.text.x = element_text(size = 12),
+               axis.title.y = element_text(size = 12),
+               axis.title.x = element_text(size = 12),
+               legend.position = "none")
+
+b = b+theme(axis.line = element_line(),
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            panel.border = element_blank(),
+            panel.background = element_blank())
+
+b = b + labs(x="Add X axis title here", y = "Add Y axis title here")
+
+
+b = b + scale_color_manual(values = c("Cropland" = "goldenrod3",
+                                      "Grassland" = "chartreuse4",
+                                      "Woodland" = "darkorchid3"))
+b
+
+
+
+#Code for Structural Equations Model (SEM)
+
+library(nlme)
+library(lme4)
+library(piecewiseSEM)
+library(QuantPsyc)
+
+##Read data
+SEM_woodlands=read.delim('clipboard',header=T)
+
+SEM_grasslands=read.delim('clipboard',header=T)
+
+SEM_croplands=read.delim('clipboard',header=T)
+
+####Multiple regression based on lm mixed effects model
+
+Function.list <- list(
+  lm(TEX ~  PRE + TEMP, data = SEM_croplands),
+  lm(PH ~  PRE + TEMP, data = SEM_croplands),
+  lm(TP ~  PRE + TEMP, data = SEM_croplands),
+  lm(TN ~  PRE + TEMP, data = SEM_croplands),
+  lm(K ~  PRE + TEMP, data = SEM_croplands),
+  
+  lm(BACTERIA ~ PRE + TEMP + TEX + PH + TP + TN + K,data = SEM_croplands),
+  lm(FUNGI ~ PRE + TEMP + TEX + PH + TP + TN + K,data = SEM_croplands),
+  
+  lm(EMF ~ PRE + TEMP + TEX + PH + TP + TN + K+ BACTERIA + FUNGI,data = SEM_croplands),
+  
+  TEX %~~% PRE,
+  TEX %~~% TEMP,
+  PH %~~% PRE,
+  PH %~~% TEMP,
+  TP %~~% PRE,
+  TP %~~% TEMP,
+  TN %~~% PRE,
+  TN %~~% TEMP,
+  K %~~% PRE,
+  K %~~% TEMP,
+  
+  PH %~~% TEX,
+  TP %~~% TEX,
+  K %~~% TEX,
+  TP %~~% PH,
+  K %~~% PH,
+  TN %~~% TP,
+  K %~~% TP, 
+  K %~~% TN
+  
+)
+
+#SEM
+Function.psem <- as.psem(Function.list)
+(new.summary <- summary(Function.psem, .progressBar = F))
+
+#AIC
+AIC(Function.psem,AIC.type = "dsep", aicc = FALSE)
